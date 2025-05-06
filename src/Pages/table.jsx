@@ -7,7 +7,6 @@ const TableUsers = () => {
 
   const fetchUsers = async () => {
     const users = await getUsers();
-    console.log(users, "users");
     setUsers(users);
   };
 
