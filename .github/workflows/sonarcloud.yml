@@ -30,7 +30,7 @@ jobs:
         run: pnpm install
 
       - name: Run tests with coverage
-        run: pnpm run test
+        run: pnpm run test:cov
 
       - name: Analyze with SonarCloud
         uses: SonarSource/sonarcloud-github-action@v2
