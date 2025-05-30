@@ -1,34 +1,9 @@
 # -*- mode: yaml -*-
-# GitStream configuration for React application
-# Adapted for basic React app without Jira integration
+# GitStream configuration for React application - Simplified version
 manifest:
   version: 1.0
 
 automations:
-  # Use LinearB's AI service to review the changes
-  linearb_ai_review:
-    on:
-      - pr_created
-      - commit
-    if:
-      - {{ not pr.draft }}
-      - {{ pr.author | match(list=['github-actions', 'dependabot', '[bot]']) | nope }}
-    run:
-      - action: code-review@v1
-
-  # Use LinearB's AI service to add a description to the PR
-  linearb_ai_description:
-    on:
-      - pr_created
-      - commit
-    if:
-      - {{ not pr.draft }}
-      - {{ pr.author | match(list=['github-actions', 'dependabot', '[bot]']) | nope }}
-    run:
-      - action: describe-changes@v1
-        args:
-          concat_mode: append
-
   # Add a label indicating how long it will take to review the PR
   estimated_time_to_review:
     if:
@@ -39,21 +14,20 @@ automations:
           label: "{{ calc.etr }} min review"
           color: {{ colors.red if (calc.etr >= 20) else ( colors.yellow if (calc.etr >= 5) else colors.green ) }}
 
-  # Auto-approve small React component changes
-  approve_small_component_changes:
+  # Auto-approve very small changes
+  approve_tiny_changes:
     if:
-      - {{ changes.size <= 3 }}
-      - {{ changes.lines <= 15 }}
+      - {{ changes.size <= 2 }}
+      - {{ changes.additions <= 10 }}
       - {{ not has.package_changes }}
-      - {{ has.react_files_only }}
     run:
       - action: approve@v1
       - action: add-comment@v1
         args:
           comment: |
-            ✅ **Auto-aprobado**: Cambio pequeño en componentes React
-            - Archivos modificados: {{ changes.size }}
-            - Líneas cambiadas: {{ changes.lines }}
+            ✅ **Auto-aprobado**: Cambio muy pequeño
+            - Archivos: {{ changes.size }}
+            - Líneas añadidas: {{ changes.additions }}
 
   # Label React component changes
   label_component_changes:
@@ -78,18 +52,18 @@ automations:
   # Request review for large changes
   request_review_large_changes:
     if:
-      - {{ changes.lines > 50 }}
+      - {{ changes.additions > 30 }}
     run:
       - action: add-label@v1
         args:
-          label: "needs-review"
+          label: "needs-review" 
           color: {{ colors.orange }}
       - action: add-comment@v1
         args:
           comment: |
             🔍 **Cambio grande detectado**
-            Este PR modifica {{ changes.lines }} líneas en {{ changes.size }} archivos.
-            Se recomienda una revisión detallada antes de hacer merge.
+            Este PR añade {{ changes.additions }} líneas.
+            Se recomienda una revisión detallada.
 
   # Label feature additions
   label_features:
@@ -120,33 +94,6 @@ automations:
         args:
           label: "dependencies"
           color: {{ colors.yellow }}
-      - action: add-comment@v1
-        args:
-          comment: |
-            📦 **Cambios en dependencias detectados**
-            Por favor, verifica que las dependencias sean necesarias y estén actualizadas.
-
-  # Require review for package.json changes
-  require_review_dependencies:
-    if:
-      - {{ has.package_changes }}
-      - {{ pr.author != 'dependabot[bot]' }}
-    run:
-      - action: add-label@v1
-        args:
-          label: "requires-review"
-          color: {{ colors.red }}
-
-  # Auto-approve dependabot PRs for minor updates
-  approve_dependabot_minor:
-    if:
-      - {{ pr.author == 'dependabot[bot]' }}
-      - {{ pr.title | includes(regex=r/(bump|update).*patch|minor/i) }}
-    run:
-      - action: approve@v1
-      - action: add-comment@v1
-        args:
-          comment: "✅ Auto-aprobado: Actualización menor de dependencias por Dependabot"
 
   # Welcome first-time contributors
   welcome_first_time_contributor:
@@ -158,54 +105,33 @@ automations:
           comment: |
             🎉 **¡Bienvenido/a y gracias por tu primera contribución!**
             
-            Apreciamos mucho tu interés en mejorar este proyecto. 
             Un mantenedor revisará tu PR pronto.
 
-  # Post a comment that lists the best experts for the files that were modified
-  explain_code_experts:
-    on:
-      - pr_created
-      - pr_ready_for_review
-      - commit
-    if:
-      - {{ changes.size > 1 }}
-    run:
-      - action: explain-code-experts@v1
-        args:
-          gt: 5
-
 # +----------------------------------------------------------------------------+
-# | Custom Expressions                                                         |
+# | Custom Expressions - Simplified                                           |
 # +----------------------------------------------------------------------------+
 calc:
   etr: {{ branch | estimatedReviewTime }}
 
 changes:
   size: {{ branch.diff.files_metadata | length }}
-  lines: {{ branch.diff.files_metadata | map(attr='additions') | sum + branch.diff.files_metadata | map(attr='deletions') | sum }}
+  additions: {{ branch.diff.files_metadata | sum(attr='additions') }}
+  deletions: {{ branch.diff.files_metadata | sum(attr='deletions') }}
 
 has:
   # React and JavaScript files
   jsx_changes: {{ files | match(regex=r/\.(jsx?|tsx?)$/) | some }}
-  react_files_only: {{ files | match(regex=r/\.(jsx?|tsx?)$/) | every }}
   
-  # Styling files
-  css_changes: {{ files | match(regex=r/\.(css|scss|sass|less|styled\.(js|ts))$/) | some }}
+  # Styling files  
+  css_changes: {{ files | match(regex=r/\.(css|scss|sass)$/) | some }}
   
-  # Package and config files
-  package_changes: {{ files | match(regex=r/(package\.json|package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$/) | some }}
-  config_changes: {{ files | match(regex=r/\.(config|rc)\.(js|ts|json)$/) | some }}
-  
-  # Test files
-  test_changes: {{ files | match(regex=r/\.(test|spec)\.(js|jsx|ts|tsx)$/) | some }}
-  
-  # Documentation
-  docs_changes: {{ files | match(regex=r/\.(md|txt|rst)$/) | some }}
+  # Package files
+  package_changes: {{ files | match(regex=r/package\.json$/) | some }}
 
 colors:
   red: 'b60205'
-  yellow: 'fbca04' 
-  green: '0e8a16'
+  yellow: 'fbca04'
+  green: '0e8a16' 
   blue: '1d76db'
   purple: '5319e7'
   orange: 'f9642a'
