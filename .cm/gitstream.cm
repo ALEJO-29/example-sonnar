@@ -1,0 +1,39 @@
+# -*- mode: yaml -*-
+
+manifest:
+  version: 1.0
+
+# Configuración de automations
+automations:
+  # Auto-aprobar cambios pequeños
+  approve_small_changes:
+    if:
+      - {{ changes.size < 5 }}
+      - {{ not has.secrets }}
+    run:
+      - action: approve
+        comment: "Auto-aprobado: cambio pequeño sin secretos"
+
+  # Solicitar revisión para cambios grandes
+  request_review_large_changes:
+    if:
+      - {{ changes.size > 50 }}
+    run:
+      - action: request-changes
+        comment: "Este PR es grande, requiere revisión manual"
+
+  # Etiquetar por tipo de cambio
+  label_by_change_type:
+    if:
+      - {{ has.bug_fix }}
+    run:
+      - action: add-label
+        label: "bug-fix"
+
+# Definiciones personalizadas
+has:
+  secrets: {{ files | match(regex=r/(secret|password|key|token)/i) | some }}
+  bug_fix: {{ pr.title | includes(regex=r/(fix|bug)/i) }}
+
+changes:
+  size: {{ branch.diff.files_metadata | map(attr='file') | length }}
