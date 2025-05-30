@@ -182,7 +182,9 @@ calc:
 
 changes:
   size: {{ branch.diff.files_metadata | length }}
-  lines: {{ branch.diff.files_metadata | map(attr='additions') | sum + branch.diff.files_metadata | map(attr='deletions') | sum }}
+  # Simplified calculation - use a simpler approach for counting lines
+  lines: {{ branch.diff.files_metadata | map(attr='additions') | sum }}
+  total_deletions: {{ branch.diff.files_metadata | map(attr='deletions') | sum }}
 
 has:
   # React and JavaScript files
