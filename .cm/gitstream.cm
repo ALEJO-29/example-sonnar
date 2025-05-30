@@ -1,43 +1,211 @@
 # -*- mode: yaml -*-
+# GitStream configuration for React application
+# Adapted for basic React app without Jira integration
 manifest:
   version: 1.0
 
 automations:
+  # Use LinearB's AI service to review the changes
+  linearb_ai_review:
+    on:
+      - pr_created
+      - commit
+    if:
+      - {{ not pr.draft }}
+      - {{ pr.author | match(list=['github-actions', 'dependabot', '[bot]']) | nope }}
+    run:
+      - action: code-review@v1
+
+  # Use LinearB's AI service to add a description to the PR
+  linearb_ai_description:
+    on:
+      - pr_created
+      - commit
+    if:
+      - {{ not pr.draft }}
+      - {{ pr.author | match(list=['github-actions', 'dependabot', '[bot]']) | nope }}
+    run:
+      - action: describe-changes@v1
+        args:
+          concat_mode: append
+
+  # Add a label indicating how long it will take to review the PR
+  estimated_time_to_review:
+    if:
+      - true
+    run:
+      - action: add-label@v1
+        args:
+          label: "{{ calc.etr }} min review"
+          color: {{ colors.red if (calc.etr >= 20) else ( colors.yellow if (calc.etr >= 5) else colors.green ) }}
+
+  # Auto-approve small React component changes
   approve_small_component_changes:
     if:
-      - changes.files < 3
-      - changes.lines < 20
-      - not has.new_dependencies
+      - {{ changes.size <= 3 }}
+      - {{ changes.lines <= 15 }}
+      - {{ not has.package_changes }}
+      - {{ has.react_files_only }}
     run:
-      - action: approve
-        comment: "✅ Auto-aprobado: Cambio pequeño en componente"
+      - action: approve@v1
+      - action: add-comment@v1
+        args:
+          comment: |
+            ✅ **Auto-aprobado**: Cambio pequeño en componentes React
+            - Archivos modificados: {{ changes.size }}
+            - Líneas cambiadas: {{ changes.lines }}
 
-  request_review_large_refactor:
+  # Label React component changes
+  label_component_changes:
     if:
-      - changes.lines > 50
-      - branch.diff.files | match(regex=r/.*\.jsx?$/) | some
+      - {{ has.jsx_changes }}
     run:
-      - action: request-changes
-        comment: "🔍 Este cambio es grande, requiere revisión manual"
-        reviewers: ["ALEJO_29"]
+      - action: add-label@v1
+        args:
+          label: "react-component"
+          color: {{ colors.blue }}
 
-  label_enhancement:
+  # Label styling changes
+  label_styling_changes:
     if:
-      - pr.title | includes(regex=r/(add|feature|enhancement)/i)
+      - {{ has.css_changes }}
     run:
-      - action: add-label
-        label: "enhancement"
+      - action: add-label@v1
+        args:
+          label: "styling"
+          color: {{ colors.purple }}
 
-  label_bug_fix:
+  # Request review for large changes
+  request_review_large_changes:
     if:
-      - pr.title | includes(regex=r/(fix|bug)/i)
+      - {{ changes.lines > 50 }}
     run:
-      - action: add-label
-        label: "bug"
+      - action: add-label@v1
+        args:
+          label: "needs-review"
+          color: {{ colors.orange }}
+      - action: add-comment@v1
+        args:
+          comment: |
+            🔍 **Cambio grande detectado**
+            Este PR modifica {{ changes.lines }} líneas en {{ changes.size }} archivos.
+            Se recomienda una revisión detallada antes de hacer merge.
+
+  # Label feature additions
+  label_features:
+    if:
+      - {{ pr.title | includes(regex=r/(feat|feature|add)/i) }}
+    run:
+      - action: add-label@v1
+        args:
+          label: "enhancement"
+          color: {{ colors.green }}
+
+  # Label bug fixes
+  label_bug_fixes:
+    if:
+      - {{ pr.title | includes(regex=r/(fix|bug|hotfix)/i) }}
+    run:
+      - action: add-label@v1
+        args:
+          label: "bug-fix"
+          color: {{ colors.red }}
+
+  # Label dependency updates
+  label_dependencies:
+    if:
+      - {{ has.package_changes }}
+    run:
+      - action: add-label@v1
+        args:
+          label: "dependencies"
+          color: {{ colors.yellow }}
+      - action: add-comment@v1
+        args:
+          comment: |
+            📦 **Cambios en dependencias detectados**
+            Por favor, verifica que las dependencias sean necesarias y estén actualizadas.
+
+  # Require review for package.json changes
+  require_review_dependencies:
+    if:
+      - {{ has.package_changes }}
+      - {{ pr.author != 'dependabot[bot]' }}
+    run:
+      - action: add-label@v1
+        args:
+          label: "requires-review"
+          color: {{ colors.red }}
+
+  # Auto-approve dependabot PRs for minor updates
+  approve_dependabot_minor:
+    if:
+      - {{ pr.author == 'dependabot[bot]' }}
+      - {{ pr.title | includes(regex=r/(bump|update).*patch|minor/i) }}
+    run:
+      - action: approve@v1
+      - action: add-comment@v1
+        args:
+          comment: "✅ Auto-aprobado: Actualización menor de dependencias por Dependabot"
+
+  # Welcome first-time contributors
+  welcome_first_time_contributor:
+    if:
+      - {{ repo.contributors | match(attr='author', term=pr.author) | nope }}
+    run:
+      - action: add-comment@v1
+        args:
+          comment: |
+            🎉 **¡Bienvenido/a y gracias por tu primera contribución!**
+            
+            Apreciamos mucho tu interés en mejorar este proyecto. 
+            Un mantenedor revisará tu PR pronto.
+
+  # Post a comment that lists the best experts for the files that were modified
+  explain_code_experts:
+    on:
+      - pr_created
+      - pr_ready_for_review
+      - commit
+    if:
+      - {{ changes.size > 1 }}
+    run:
+      - action: explain-code-experts@v1
+        args:
+          gt: 5
+
+# +----------------------------------------------------------------------------+
+# | Custom Expressions                                                         |
+# +----------------------------------------------------------------------------+
+calc:
+  etr: {{ branch | estimatedReviewTime }}
 
 changes:
-  files: branch.diff.files_metadata | length
-  lines: branch.diff.files_metadata | map(attr='additions') | sum + branch.diff.files_metadata | map(attr='deletions') | sum
+  size: {{ branch.diff.files_metadata | length }}
+  lines: {{ branch.diff.files_metadata | map(attr='additions') | sum + branch.diff.files_metadata | map(attr='deletions') | sum }}
 
 has:
-  new_dependencies: branch.diff.files | match(regex=r/package\.json$/) | some
+  # React and JavaScript files
+  jsx_changes: {{ files | match(regex=r/\.(jsx?|tsx?)$/) | some }}
+  react_files_only: {{ files | match(regex=r/\.(jsx?|tsx?)$/) | every }}
+  
+  # Styling files
+  css_changes: {{ files | match(regex=r/\.(css|scss|sass|less|styled\.(js|ts))$/) | some }}
+  
+  # Package and config files
+  package_changes: {{ files | match(regex=r/(package\.json|package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$/) | some }}
+  config_changes: {{ files | match(regex=r/\.(config|rc)\.(js|ts|json)$/) | some }}
+  
+  # Test files
+  test_changes: {{ files | match(regex=r/\.(test|spec)\.(js|jsx|ts|tsx)$/) | some }}
+  
+  # Documentation
+  docs_changes: {{ files | match(regex=r/\.(md|txt|rst)$/) | some }}
+
+colors:
+  red: 'b60205'
+  yellow: 'fbca04' 
+  green: '0e8a16'
+  blue: '1d76db'
+  purple: '5319e7'
+  orange: 'f9642a'
