@@ -1,47 +1,42 @@
-# -*- mode: yaml -*-
-
 manifest:
   version: 1.0
 
 automations:
-  # Auto-aprobar cambios pequeños en componentes
   approve_small_component_changes:
     if:
-      - {{ changes.files < 3 }}
-      - {{ changes.lines < 20 }}
-      - {{ not has.new_dependencies }}
+      - changes.files < 3
+      - changes.lines < 20
+      - not has.new_dependencies
     run:
       - action: approve
         comment: "✅ Auto-aprobado: Cambio pequeño en componente"
 
-  # Solicitar revisión para refactorizaciones grandes
   request_review_large_refactor:
     if:
-      - {{ changes.lines > 50 }}
-      - {{ files | match(regex=r/.*\.jsx?$/) | some }}
+      - changes.lines > 50
+      - branch.diff.files | match(regex=r/.*\.jsx?$/) | some
     run:
       - action: request-changes
         comment: "🔍 Este cambio es grande, requiere revisión manual"
         reviewers: ["tu-username"]
 
-  # Etiquetar por tipo de cambio
   label_enhancement:
     if:
-      - {{ pr.title | includes(regex=r/(add|feature|enhancement)/i) }}
+      - pr.title | includes(regex=r/(add|feature|enhancement)/i)
     run:
       - action: add-label
         label: "enhancement"
 
   label_bug_fix:
     if:
-      - {{ pr.title | includes(regex=r/(fix|bug)/i) }}
+      - pr.title | includes(regex=r/(fix|bug)/i)
     run:
       - action: add-label
         label: "bug"
 
 changes:
-  files: {{ branch.diff.files_metadata | length }}
-  lines: {{ branch.diff.files_metadata | map(attr='additions') | sum + branch.diff.files_metadata | map(attr='deletions') | sum }}
+  files: branch.diff.files_metadata | length
+  lines: branch.diff.files_metadata | map(attr='additions') | sum + branch.diff.files_metadata | map(attr='deletions') | sum
 
 has:
-  new_dependencies: {{ files | match(regex=r/package\.json$/) | some }}
+  new_dependencies: branch.diff.files | match(regex=r/package\.json$/) | some
