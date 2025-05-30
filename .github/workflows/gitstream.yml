@@ -1,4 +1,5 @@
 name: GitStream workflow
+
 on:
   pull_request:
     types: [opened, edited, synchronize]
@@ -8,11 +9,14 @@ on:
 jobs:
   gitstream:
     runs-on: ubuntu-latest
-    name: GitStream workflow
     steps:
-      - name: Evaluate Rules
-        uses: linear-b/gitstream-github-action@v1
-        with:
-          rules-file: '.cm/gitstream.cm'
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Fetch all branches
+        run: git fetch --all
+
+      - name: Run GitStream
+        uses: linear-b/gitstream-github-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
