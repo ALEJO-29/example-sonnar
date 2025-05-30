@@ -19,7 +19,5 @@ jobs:
 
       - name: Evaluate Rules
         uses: linear-b/gitstream-github-action@v2
-        with:
-          rules_file: '.cm/gitstream.cm'  
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
