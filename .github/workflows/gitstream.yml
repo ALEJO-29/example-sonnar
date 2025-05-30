@@ -11,13 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     name: GitStream workflow
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Fetch all branches
-        run: git fetch --all
-
       - name: Evaluate Rules
-        uses: linear-b/gitstream-github-action@v2
+        uses: linear-b/gitstream-github-action@v1
+        with:
+          rules-file: '.cm/gitstream.cm'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
