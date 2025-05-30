@@ -3,37 +3,45 @@
 manifest:
   version: 1.0
 
-# Configuración de automations
 automations:
-  # Auto-aprobar cambios pequeños
-  approve_small_changes:
+  # Auto-aprobar cambios pequeños en componentes
+  approve_small_component_changes:
     if:
-      - {{ changes.size < 5 }}
-      - {{ not has.secrets }}
+      - {{ changes.files < 3 }}
+      - {{ changes.lines < 20 }}
+      - {{ not has.new_dependencies }}
     run:
       - action: approve
-        comment: "Auto-aprobado: cambio pequeño sin secretos"
+        comment: "✅ Auto-aprobado: Cambio pequeño en componente"
 
-  # Solicitar revisión para cambios grandes
-  request_review_large_changes:
+  # Solicitar revisión para refactorizaciones grandes
+  request_review_large_refactor:
     if:
-      - {{ changes.size > 50 }}
+      - {{ changes.lines > 50 }}
+      - {{ files | match(regex=r/.*\.jsx?$/) | some }}
     run:
       - action: request-changes
-        comment: "Este PR es grande, requiere revisión manual"
+        comment: "🔍 Este cambio es grande, requiere revisión manual"
+        reviewers: ["tu-username"]
 
   # Etiquetar por tipo de cambio
-  label_by_change_type:
+  label_enhancement:
     if:
-      - {{ has.bug_fix }}
+      - {{ pr.title | includes(regex=r/(add|feature|enhancement)/i) }}
     run:
       - action: add-label
-        label: "bug-fix"
+        label: "enhancement"
 
-# Definiciones personalizadas
-has:
-  secrets: {{ files | match(regex=r/(secret|password|key|token)/i) | some }}
-  bug_fix: {{ pr.title | includes(regex=r/(fix|bug)/i) }}
+  label_bug_fix:
+    if:
+      - {{ pr.title | includes(regex=r/(fix|bug)/i) }}
+    run:
+      - action: add-label
+        label: "bug"
 
 changes:
-  size: {{ branch.diff.files_metadata | map(attr='file') | length }}
+  files: {{ branch.diff.files_metadata | length }}
+  lines: {{ branch.diff.files_metadata | map(attr='additions') | sum + branch.diff.files_metadata | map(attr='deletions') | sum }}
+
+has:
+  new_dependencies: {{ files | match(regex=r/package\.json$/) | some }}
