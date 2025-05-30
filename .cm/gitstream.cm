@@ -22,7 +22,7 @@ automations:
     run:
       - action: request-changes
         comment: "🔍 Este cambio es grande, requiere revisión manual"
-        reviewers: ["tu-username"]
+        reviewers: ["ALEJO_29"]
 
   # Etiquetar por tipo de cambio
   label_enhancement:
